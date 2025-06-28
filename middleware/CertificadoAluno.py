@@ -1,184 +1,86 @@
+import streamlit as st
 import pandas as pd
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.units import cm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-import qrcode
 from io import BytesIO
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.utils import ImageReader
 import os
 
-# Função para gerar certificado
-def gerar_certificado(dados, output_path):
-    doc = SimpleDocTemplate(
-        output_path, 
-        pagesize=landscape(A4),
-        rightMargin=2*cm, 
-        leftMargin=4*cm,
-        topMargin=2*cm, 
-        bottomMargin=0*cm )
-    
+# Função para gerar todos os certificados em um único PDF
+def gerar_certificados(dados_lista):
+    if isinstance(dados_lista, pd.DataFrame):
+        dados_lista = dados_lista.to_dict(orient='records')
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+                            rightMargin=2*cm, leftMargin=4*cm,
+                            topMargin=2*cm, bottomMargin=0*cm)
+
     styles = getSampleStyleSheet()
-    
-    style_title = ParagraphStyle(
-        name='TitleCenter',
-        parent=styles['Title'],
-        alignment=TA_CENTER,
-        fontSize=48,
-        spaceAfter=1    
-    )
-    
-    style_normal = ParagraphStyle(
-        name='NormalLeft',
-        parent=styles['Normal'],
-        alignment=TA_LEFT,
-        fontSize=14,
-        spaceAfter=30,
-        leading=15
-    )
-    
-    style_centered = ParagraphStyle(
-        name='Centered',
-        parent=styles['Normal'],
-        alignment=TA_CENTER,
-        fontSize=12,
-        spaceAfter=12
-    )
 
-    elements = []
-    
-    # elements.append(Spacer(1, 50))
-    elements.append(Paragraph("Certificado", style_title))
-    elements.append(Spacer(1, 50))
+    style_title = ParagraphStyle(name='TitleCenter', parent=styles['Title'],
+                                 alignment=TA_CENTER, fontSize=48, spaceAfter=1)
+    style_normal = ParagraphStyle(name='NormalLeft', parent=styles['Normal'],
+                                  alignment=TA_LEFT, fontSize=14, spaceAfter=30, leading=15)
+    style_centered = ParagraphStyle(name='Centered', parent=styles['Normal'],
+                                    alignment=TA_CENTER, fontSize=12, spaceAfter=12)
 
-    texto = f"""
-    Nome do aluno: <b>{dados['nome_aluno']}</b><br/>
-    RG/CPF: <b>{dados['cpf']}</b><br/>
-    Empresa: <b>{dados['empresa']}</b><br/> 
-    Endereço: <b>{dados['endereco_empresa']}</b><br/><br/>
-    
-    Certificamos que o aluno acima identificado realizou o treinamnto de "Brigada de Incêndio - 
-    Prevenção e Combate a Incêndio e Primeiros Socorros", de acordo com as normas NBR14277 da 
-    ABNT, e IT-17 do Corpo de Bombeiros, com o conteúdo programático da tabela B.2 da IT-17. <br/> <br/> 
-    
-    Nivel: <b>{dados['nivel_curso']}</b><br/> 
-    Modalidade: <b>{dados['modalidade']}</b><br/>
-    Carga horária: <b>{dados['carga_horaria']}</b><br/>
-    """
-    
-    texto_cidade = f"""<b>{dados['cidade_data']}.</b><br/>""" 
-    elements.append(Paragraph(texto, style_normal))
-    elements.append(Spacer(1, 5))
-    elements.append(Paragraph(texto_cidade, style_centered))
-    
-    elements.append(Spacer(1, 5))
-    
-    # Dados para a assinatura
-    
-    assinaturas = [
-        [
-            f"""
-            _____________________________
-            {dados['instrutor']}
-            Instrutor
-            CPF:{dados['documento_instrutor']}""", 
-            
-            f"""
-            
-            _____________________________
-            {dados['nome_aluno']}
-            Aluno
-            CPF: {dados['cpf']}
-            """, 
-            
-            """
-            
-            _____________________________
-            CRISTIANO REIS
-            Responsavel técnico
-            CPF: 214.135.358-01
-            """
-        ],
-    ]
+    all_elements = []
 
-    # Criar tabela
-    tabela_assinaturas = Table(assinaturas, colWidths=[7*cm, 7*cm, 7*cm])
+    for dados in dados_lista:
+        elements = []
+        elements.append(Paragraph("Certificado", style_title))
+        elements.append(Spacer(1, 50))
 
-    # Estilo da tabela
-    tabela_assinaturas.setStyle(TableStyle([
-        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 0),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-    ]))
+        texto = f"""
+        Nome do aluno: <b>{dados['nome_aluno']}</b><br/>
+        RG/CPF: <b>{dados['cpf']}</b><br/>
+        Empresa: <b>{dados['empresa']}</b><br/> 
+        Endereço: <b>{dados['endereco_empresa']}</b><br/><br/>
+        Certificamos que o aluno acima identificado realizou o treinamento de Brigada de Incêndio,
+        conforme NBR14277 e IT-17 do Corpo de Bombeiros.<br/><br/>
+        Nível: <b>{dados['nivel_curso']}</b><br/>
+        Modalidade: <b>{dados['modalidade']}</b><br/>
+        Carga horária: <b>{dados['carga_horaria']}</b><br/>
+        """
 
-    # Adicionar no PDF
-    elements.append(Spacer(1, 50))
-    elements.append(tabela_assinaturas)
+        texto_cidade = f"""<b>{dados['cidade_data']}.</b><br/>"""
 
-    # Função para desenhar a imagem diretamente no canvas
+        elements.append(Paragraph(texto, style_normal))
+        elements.append(Spacer(1, 5))
+        elements.append(Paragraph(texto_cidade, style_centered))
+        elements.append(Spacer(1, 5))
+
+        assinaturas = [[
+            f"_____________________________\n{dados['instrutor']}\nInstrutor\nCPF: {dados['documento_instrutor']}",
+            f"_____________________________\n{dados['nome_aluno']}\nAluno\nCPF: {dados['cpf']}",
+            "_____________________________\nCRISTIANO REIS\nResponsável Técnico\nCPF: 214.135.358-01"
+        ]]
+        tabela_assinaturas = Table(assinaturas, colWidths=[7*cm]*3)
+        tabela_assinaturas.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+
+        elements.append(Spacer(1, 50))
+        elements.append(tabela_assinaturas)
+
+        all_elements.extend(elements)
+        all_elements.append(PageBreak())
+
     def desenhar_imagem(canvas, doc):
-        page_width, page_height = landscape(A4)
-        imagem_path = "public/lateral_esquerda.png"
-        x = -15  # posição x no papel (30 pontos da borda esquerda)
-        y = 0  # posição y (ajustar conforme a necessidade)
-        largura = 120  # largura da imagem em pontos
-        altura = page_height   # altura da imagem em pontos
-        canvas.drawImage(imagem_path, x, y, width=largura, height=altura, preserveAspectRatio=True)
-        
-        #assinaturas
-        assinatura_Resp_tec = "public/assinaturacristianoreis.png"
-        x = 600
-        y = 130
-        altura = 80
-        canvas.drawImage(assinatura_Resp_tec, x, y, width=largura, height=altura, preserveAspectRatio=True)
-        
-        assinaura_instrutor = "public/Instrutores.png"
-        x = 210  
-        y = 130
-        altura = 80
-        canvas.drawImage(assinaura_instrutor, x, y, width=largura, height=altura, preserveAspectRatio=True)
-        
-    # Gerar QR Code
-    # qr_texto = f"Certificado: {dados['nome_aluno']} - {dados['empresa']} - {dados['nivel_curso']}"
-    # qr = qrcode.make(qr_texto)
-    # buffer = BytesIO()
-    # qr.save(buffer)
-    # buffer.seek(0)
+        lateral = "public/lateral_esquerda.png"
+        instrutor_ass = "public/Instrutores.png"
+        resp_tec_ass = "public/assinaturacristianoreis.png"
+        canvas.drawImage(lateral, -15, 0, width=120, height=landscape(A4)[1])
+        canvas.drawImage(instrutor_ass, 210, 130, width=120, height=80, preserveAspectRatio=True)
+        canvas.drawImage(resp_tec_ass, 600, 130, width=120, height=80, preserveAspectRatio=True)
 
-    # qr_img = Image(buffer, width=3*cm, height=3*cm)
-    # qr_img.hAlign = 'CENTER'
-    # elements.append(qr_img)
-    
-    #Geração do PDF
-    doc.build(elements, onFirstPage=desenhar_imagem)
-
-# -------------------------------
-# Carregar planilha Excel
-planilha = pd.read_excel('dados_alunos.xlsx')
-
-# Pasta de saída
-output_folder = "certificados"
-os.makedirs(output_folder, exist_ok=True)
-
-# Gerar certificados
-for index, row in planilha.iterrows():
-    dados = {
-        "nome_aluno": row['nome_aluno'],
-        "cpf": row['cpf'],
-        "empresa": row['empresa'],
-        "endereco_empresa": row['endereco_empresa'],
-        "nivel_curso": row['nivel_curso'],
-        "modalidade": row['modalidade'],
-        "carga_horaria": str(row['carga_horaria']),
-        "cidade_data": row['cidade_data'],
-        "instrutor": row['instrutor'],
-        "documento_instrutor": row['documento_instrutor'],
-    }
-    nome_arquivo = os.path.join(output_folder, f"certificado_{dados['nome_aluno'].replace(' ', '_')}.pdf")
-    
-    gerar_certificado(dados, nome_arquivo)
-    print(f"Certificado gerado: {nome_arquivo}")
-
-print("✅ Todos os certificados foram gerados a partir do Excel!")
+    doc.build(all_elements, onFirstPage=desenhar_imagem, onLaterPages=desenhar_imagem)
+    buffer.seek(0)
+    return buffer
