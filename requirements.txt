@@ -2,3 +2,4 @@ reportlab
 pandas
 streamlit
 openpyxl
+xlsxwriter
