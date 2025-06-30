@@ -17,6 +17,7 @@ def carregar_planilha(file):
 def main():
     st.set_page_config(layout="wide")
     # st.Page(icon="📃", title="Documentação", page="app")
+    Menu.show()
 
     st.markdown("# Importação")
     st.write("Criação de certificados, atestados e carterinhas.")
